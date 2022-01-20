@@ -16,43 +16,34 @@
 %%
 -module(button).
 
--export([start/2, state/2]).
+-export([start/2]).
 
 
 start(GPIO, Pin) ->
-	gpio:set_direction(GPIO, Pin, input),
-	Button_State = spawn(fun() -> state(Pin, high) end),
-	io:format("... starting button interupt.~n"),
-	spawn(fun() -> watch(GPIO, Pin, Button_State) end),
-{ok, Button_State}.
+    gpio:set_direction(GPIO, Pin, input),
+    io:format("... starting button:state/3 state and interupt manager on GPIO ~p Pin ~p.~n", [GPIO, Pin]),
+    ButtonState = spawn(fun() -> state(GPIO, Pin, high) end),
+{ok, ButtonState}.
 
-watch(GPIO, Pin, Button_State) ->
-	io:format("button:watch/3 setting gpio [~p] interupt on pin ~p for state 'low'...~n", [GPIO, Pin]),
-	gpio:set_int(GPIO, Pin, rising),
-	receive
-		{gpio_interrupt, Pin} ->
-			io:format("button:watch/3 got signal: {gpio_interrupt, ~p}~n", [Pin]),
-			io:format("Updating button:state/2 :: {low, ~p}~n", [Pin]),
-			Button_State ! {low, Pin},
-			watch(GPIO, Pin, Button_State);
-		Any ->
-			io:format("button:watch/3 got signal: ~p~n", [Any]),
-			watch(GPIO, Pin, Button_State)
-	end.
-
-state(Pin, State) ->	
-	%%io:format("Button on pin ~p state is: ~p.~n", [Pin, State]),
-	receive
-		{get, Sender} ->
-			io:format("button:state/2 received 'get' request for pin ~p.  Sending: ~p~n", [Pin, State]),
-			Sender ! {buttonstate, State},
-			state(Pin, State);
-		{low, Pin} ->
-			io:format("button:state/2 set pin ~p low.~n", [Pin]),
-			state(Pin, low);
-		{high, Pin} ->
-			io:format("button:state/2 set pin ~p high.~n", [Pin]),
-			state(Pin, high)
-		after 5000 ->
-			state(Pin, State)
-	end.
+state(GPIO, Pin, State) ->    
+    io:format("button:state/3 setting gpio [~p] interupt on pin ~p for state 'low'...~n", [GPIO, Pin]),
+    gpio:set_int(GPIO, Pin, rising),
+    receive
+        {get, Sender} ->
+            io:format("button:state/3 received 'get' request for pin ~p.  Sending: ~p~n", [Pin, State]),
+            Sender ! {buttonstate, State, self()},
+            state(GPIO, Pin, State);
+        {low, Pin} ->
+            io:format("button:state/3 set pin ~p low.~n", [Pin]),
+            state(GPIO, Pin, low);
+        {high, Pin} ->
+            io:format("button:state/3 set pin ~p high.~n", [Pin]),
+            state(GPIO, Pin, high);
+        {gpio_interrupt, Pin} ->
+            io:format("button:state/3 got signal: {gpio_interrupt, ~p}~n", [Pin]),
+            io:format("Updating button:state/3 :: {low, ~p}~n", [Pin]),
+            state(GPIO, Pin, low);
+        Any ->
+            io:format("button:state/3 got UNKNOWN signal: ~p", [Any]),
+            state(GPIO, Pin, State)
+    end.

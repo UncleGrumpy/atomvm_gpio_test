@@ -19,45 +19,47 @@
 -export([start/0]).
 
 start() ->
-	LED = 2,
-	BTN = 0,
-	io:format("Initalizing GPIO bus... "),
-	GPIO = gpio:open(),
-	io:format("success!  bus:~p~n", [GPIO]),
-	io:format("... calling led:start/2 on gpio: ~p, pin: ~p.~n", [GPIO, LED]),
-	{ok, LedCtl} = led:start(GPIO, LED),
-	io:format("... calling button:start/2 on gpio: ~p, pin: ~p.~n", [GPIO, BTN]),
-	{ok, Button_State} = button:start(GPIO, BTN),
-	io:format("... starting button_loop/3.~n"),
-	button_loop(LedCtl, BTN, Button_State),
+    LED = 2,
+    BTN = 0,
+    io:format("Initalizing GPIO bus... "),
+    GPIO = gpio:open(),
+    io:format("success!  bus:~p~n", [GPIO]),
+    io:format("... calling led:start/2 on gpio: ~p, pin: ~p.~n", [GPIO, LED]),
+    {ok, LedCtl} = led:start(GPIO, LED),
+    io:format("... calling button:start/2 on gpio: ~p, pin: ~p.~n", [GPIO, BTN]),
+    {ok, ButtonState} = button:start(GPIO, BTN),
+    io:format("... starting button_loop/3.~n"),
+    button_loop(LedCtl, BTN, ButtonState),
     ok.
 
-button_loop(LedCtl, Pin, Button_State) ->
-	FreeHeap = erlang:system_info(esp32_free_heap_size),
-	io:format("Free Heap: ~p~n", [FreeHeap]),
-	io:format("Process Count: ~p~n", [erlang:system_info(process_count)]),
-	Pids = erlang:processes(),
-	[io:format("Pid ~p: ~p ~p~n", [Pid, erlang:process_info(Pid, message_queue_len), erlang:process_info(Pid, memory)]) || Pid <- Pids],
-	Button_State ! {get, self()},
-	receive
-		{buttonstate, State} ->
-			case State of
-				high ->
-					dont_care,
-					ok = timer:sleep(5000),
-					button_loop(LedCtl, Pin, Button_State);
-				low ->
-					Button_State ! {high, Pin},
-					LedCtl ! {blink, 6},
-					ok = timer:sleep(6000),
-					button_loop(LedCtl, Pin, Button_State);
-				Any ->
-					io:format("button:state/2 returned INVALID state for button on pin ~p:~n~p.~n", [Pin, Any]),
-					button_loop(LedCtl, Pin, Button_State)
-			end;
-		Any ->
-			io:format("button_loop/3 recieved INVALID signal: ~p.~n", [Any]),
-			button_loop(LedCtl, Pin, Button_State)
-		after 5000 ->
-			button_loop(LedCtl, Pin, Button_State)
-	end.
+button_loop(LedCtl, Pin, ButtonState) ->
+    FreeHeap = erlang:system_info(esp32_free_heap_size),
+    LargestBlock = erlang:system_info(esp32_largest_free_block),
+    LowestFree = erlang:system_info(esp32_minimum_free_size),
+    io:format("Free Heap: ~p.~nLargest free block size: ~p~nLowest free block size since boot: ~p~n", [FreeHeap, LargestBlock, LowestFree]),
+    io:format("Process Count: ~p~n", [erlang:system_info(process_count)]),
+    Pids = erlang:processes(),
+    [io:format("Pid ~p: ~p ~p~n", [Pid, erlang:process_info(Pid, message_queue_len), erlang:process_info(Pid, memory)]) || Pid <- Pids],
+    ButtonState ! {get, self()},
+    receive
+        {buttonstate, State, ButtonState} ->
+            case State of
+                high ->
+                    dont_care,
+                    ok = timer:sleep(5000),
+                    button_loop(LedCtl, Pin, ButtonState);
+                low ->
+                    ButtonState ! {high, Pin},
+                    LedCtl ! {blink, 6},
+                    ok = timer:sleep(6000),
+                    button_loop(LedCtl, Pin, ButtonState);
+                Any ->
+                    io:format("button:state/3 sent INVALID state for button on pin ~p:~n~p.~n", [Pin, Any]),
+                    button_loop(LedCtl, Pin, ButtonState)
+            end;
+        Any ->
+            io:format("gpio_test:button_loop/3 recieved INVALID signal: ~p.~n", [Any]),
+            button_loop(LedCtl, Pin, ButtonState)
+        after 5000 ->
+            button_loop(LedCtl, Pin, ButtonState)
+    end.
