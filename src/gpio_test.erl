@@ -39,7 +39,8 @@ button_loop(LedCtl, Pin, ButtonState) ->
     io:format("Free Heap: ~p.~nLargest free block size: ~p~nLowest free block size since boot: ~p~n", [FreeHeap, LargestBlock, LowestFree]),
     io:format("Process Count: ~p~n", [erlang:system_info(process_count)]),
     Pids = erlang:processes(),
-    [io:format("Pid ~p: ~p ~p~n", [Pid, erlang:process_info(Pid, message_queue_len), erlang:process_info(Pid, memory)]) || Pid <- Pids],
+    lists:foreach(fun(Pid) -> io:format("Pid ~p: ~p ~p~n", [Pid, erlang:process_info(Pid, message_queue_len), erlang:process_info(Pid, memory)]) end, Pids),
+%    [io:format("Pid ~p: ~p ~p~n", [Pid, erlang:process_info(Pid, message_queue_len), erlang:process_info(Pid, memory)]) || Pid <- Pids],
     ButtonState ! {get, self()},
     receive
         {buttonstate, State, ButtonState} ->

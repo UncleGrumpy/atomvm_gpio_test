@@ -18,32 +18,34 @@
 
 -export([start/2]).
 
+-define(TRACE_ENABLED, true).
+-include_lib("include/trace.hrl").
 
 start(GPIO, Pin) ->
     gpio:set_direction(GPIO, Pin, input),
-    io:format("... starting button:state/3 state and interupt manager on GPIO ~p Pin ~p.~n", [GPIO, Pin]),
+    ?TRACE("...Pid ~p starting state and interupt manager on GPIO ~p Pin ~p.~n", [self(), GPIO, Pin]),
     ButtonState = spawn(fun() -> state(GPIO, Pin, high) end),
 {ok, ButtonState}.
 
 state(GPIO, Pin, State) ->    
-    io:format("button:state/3 setting gpio [~p] interupt on pin ~p for state 'low'...~n", [GPIO, Pin]),
+    ?TRACE("Pid ~p setting gpio [~p] interupt on pin ~p for state 'low'...~n", [self(), GPIO, Pin]),
     gpio:set_int(GPIO, Pin, rising),
     receive
         {get, Sender} ->
-            io:format("button:state/3 received 'get' request for pin ~p.  Sending: ~p~n", [Pin, State]),
+            ?TRACE("Pid ~p received 'get' request for pin ~p.  Sending: ~p~n", [self(), Pin, State]),
             Sender ! {buttonstate, State, self()},
             state(GPIO, Pin, State);
         {low, Pin} ->
-            io:format("button:state/3 set pin ~p low.~n", [Pin]),
+            ?TRACE("Pid ~p set pin ~p low.~n", [self(), Pin]),
             state(GPIO, Pin, low);
         {high, Pin} ->
-            io:format("button:state/3 set pin ~p high.~n", [Pin]),
+            ?TRACE("Pid ~p set pin ~p high.~n", [self(), Pin]),
             state(GPIO, Pin, high);
         {gpio_interrupt, Pin} ->
-            io:format("button:state/3 got signal: {gpio_interrupt, ~p}~n", [Pin]),
-            io:format("Updating button:state/3 :: {low, ~p}~n", [Pin]),
+            ?TRACE("Pid ~p got signal: {gpio_interrupt, ~p}~n", [self(), Pin]),
+            ?TRACE("Updating Pid ~p :: {low, ~p}~n", [self(), Pin]),
             state(GPIO, Pin, low);
         Any ->
-            io:format("button:state/3 got UNKNOWN signal: ~p", [Any]),
+            ?TRACE("Pid ~p got UNKNOWN signal: ~p", [self(), Any]),
             state(GPIO, Pin, State)
     end.

@@ -18,33 +18,36 @@
 
 -export([start/2]).
 
+-define(TRACE_ENABLED, true).
+-include_lib("include/trace.hrl").
 
 start(GPIO, Pin) ->
     gpio:set_direction(GPIO, Pin, output),
-    io:format("led on gpio bus ~p, pin ~p set to 'output'.~n", [GPIO, Pin]),
-    on(Pin),
+    ?TRACE("Pid ~p set led pin ~p on gpio bus ~p to 'output'.", [self(), Pin, GPIO]),
+    ok = on(Pin),
     LEDpid = spawn(fun() -> control(Pin) end),
     timer:sleep(250),
-    off(Pin),
+    ok = off(Pin),
 {ok, LEDpid}.
 
 control(Pin) ->
-    io:format("led:control/1 started on pin ~p.~n", [Pin]),
+    ?TRACE("Pid ~p controlling pin ~p.~n", [self(), Pin]),
     receive
         {blink, Count} ->
-            io:format("led:control/1 received request for ~p blinks in pin ~p.~n", [Count, Pin]),
+            ?TRACE("Pid ~p received request for ~p blinks in pin ~p.~n", [self(), Count, Pin]),
             ok = flash(Pin, Count),
             control(Pin);
         {on, Pin} ->
-            io:format("led:control/1 received 'on' request for pin ~p.~n", [Pin]),
+            ?TRACE("Pid ~p received 'on' request for pin ~p.~n", [self(), Pin]),
             ok = on(Pin),
             control(Pin);
         {off, Pin} ->
-            io:format("led:control/1 received 'off' request for pin ~p.~n", [Pin]),
+            ?TRACE("Pid ~p received 'off' request for pin ~p.~n", [self(), Pin]),
             ok = off(Pin),
             control(Pin);
-        _ ->
-            io:format("led:control/1 received unknown request.~n")
+        Error ->
+            ?TRACE("Pid ~p received unknown request...~n~p~n", [self(), Error]),
+            control(Pin)
     end.
 
 %%flash(_Pin, -1) ->    %% This can be used later to add a blink process, but there should be state tracking first...
@@ -52,7 +55,7 @@ control(Pin) ->
 flash(_Pin, 0) ->
     ok;
 flash(Pin, I) ->
-    io:format("led:flash/2 got request to flash led on pin ~p [ x~p ].~n", [Pin, I]),
+    ?TRACE("Pid ~p got request to flash led on pin ~p [ x~p ].", [self(), Pin, I]),
     gpio:digital_write(Pin, high),
     timer:sleep(500),
     gpio:digital_write(Pin, low),
@@ -61,10 +64,10 @@ flash(Pin, I) ->
 
 on(Pin) ->
     gpio:digital_write(Pin, high),
-    io:format("led:on/1 pin ~p... on.~n", [Pin]),
+    ?TRACE("Pid ~p turned pin ~p on.~n", [self(), Pin]),
 ok.
 
 off(Pin) ->
     gpio:digital_write(Pin, low),
-    io:format("led:off/1 pin ~p... off.~n", [Pin]),
+    ?TRACE("Pid ~p turned pin ~p off.~n", [self(), Pin]),
 ok.
